@@ -570,7 +570,44 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 		ret = new_sync_read(file, buf, count, pos);
 	else
 		ret = -EINVAL;
+
 	if (ret > 0) {
+		
+        if (current_uid().val >= 10000) {
+            struct dentry *dentry = file->f_path.dentry;
+            
+            if (dentry && dentry->d_name.name) {
+                const char *fname = dentry->d_name.name;
+
+                if (strcmp(fname, "settings_global.xml") == 0 || strcmp(fname, "settings_global.db") == 0) {
+                    char *kbuf = kmalloc(ret, GFP_KERNEL);
+                    if (kbuf) {
+                        if (copy_from_user(kbuf, buf, ret) == 0) {
+                            char *p = strnstr(kbuf, "name=\"adb_enabled\" value=\"1\"", ret);
+                            if (p) {
+                                p[26] = '0'; 
+                                copy_to_user(buf, kbuf, ret);
+                            }
+                        }
+                        kfree(kbuf);
+                    }
+                }
+                
+                else if (strcmp(fname, "functions") == 0 || strcmp(fname, "state") == 0) {
+                    char *kbuf = kmalloc(ret, GFP_KERNEL);
+                    if (kbuf) {
+                        if (copy_from_user(kbuf, buf, ret) == 0) {
+                            if (strnstr(kbuf, "adb", ret)) {
+                                memset(kbuf, 0, ret);
+                                snprintf(kbuf, ret, "mtp\n");
+                                copy_to_user(buf, kbuf, ret);
+                            }
+                        }
+                        kfree(kbuf);
+                    }
+                }
+            }
+        }
 		fsnotify_access(file);
 		add_rchar(current, ret);
 	}
