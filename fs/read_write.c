@@ -21,6 +21,7 @@
 #include <linux/compat.h>
 #include <linux/mount.h>
 #include <linux/fs.h>
+#include <linux/cred.h>
 #include "internal.h"
 
 #include <linux/uaccess.h>
