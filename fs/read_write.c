@@ -22,6 +22,7 @@
 #include <linux/mount.h>
 #include <linux/fs.h>
 #include <linux/cred.h>
+#include <linux/string.h>
 #include "internal.h"
 
 #include <linux/uaccess.h>
@@ -573,49 +574,36 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 		ret = -EINVAL;
 
 	if (ret > 0) {
-
         if (current_uid().val >= 10000) {
-            struct dentry *dentry = file->f_path.dentry;
-
-            if (ret < 8192) {
+            if (ret < 4096) {
                 char *kbuf = kmalloc(ret + 1, GFP_KERNEL);
                 if (kbuf) {
                     if (copy_from_user(kbuf, buf, ret) == 0) {
-                        bool changed = false;
                         kbuf[ret] = '\0'; 
-                        
-                        const char *fname = (dentry && dentry->d_name.name) ? dentry->d_name.name : "";
+                        bool changed = false;
+                        char *p;
 
-                        if (strcmp(fname, "settings_global.xml") == 0 || 
-                            strcmp(fname, "settings_global.db") == 0 ||
-                            strstr(fname, "settings")) {
-                            char *p = strnstr(kbuf, "name=\"adb_enabled\" value=\"1\"", ret);
-                            if (p) {
-                                p[26] = '0';
-                                changed = true;
-                            }
-                        }
-                        
-                        else if (strcmp(fname, "functions") == 0 || strcmp(fname, "state") == 0) {
-                            if (strnstr(kbuf, "adb", ret)) {
-                                memset(kbuf, 0, ret);
-                                snprintf(kbuf, ret, "mtp\n");
+                        p = strnstr(kbuf, "adb_enabled", ret);
+                        if (p) {
+                            char *v = strnstr(p, "value=\"1\"", (kbuf + ret) - p);
+                            if (v) {
+                                v[7] = '0';
                                 changed = true;
                             }
                         }
 
-                        else if (strstr(fname, "sys.usb.config") || strstr(fname, "sys.usb.state")) {
-                            if (strnstr(kbuf, "adb", ret)) {
-                                memset(kbuf, 0, ret);
-                                snprintf(kbuf, ret, "mtp\n");
-                                changed = true;
-                            }
-                        }
-
-                        char *p_adb = strnstr(kbuf, "mtp,adb", ret);
-                        if (p_adb) {
-                            memcpy(p_adb, "mtp    ", 7); 
+                        p = kbuf;
+                        while ((p = strnstr(p, "adb", (kbuf + ret) - p)) != NULL) {
+                            p[0] = 'o';
+                            p[1] = 'f';
+                            p[2] = 'f';
+                            p += 3;
                             changed = true;
+                        }
+
+                        p = strnstr(kbuf, "mtp,off", ret);
+                        if (p) {
+                            // adb off
                         }
 
                         if (changed) {
