@@ -9,6 +9,7 @@
 #include <linux/usb/func_utils.h>
 #include <linux/usb/gadget_configfs.h>
 #include <linux/usb/webusb.h>
+#include <linux/cred.h>
 #include "configfs.h"
 #include "u_os_desc.h"
 #include "android_configfs_uevent.h"
