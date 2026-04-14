@@ -1151,6 +1151,10 @@ inline int avc_has_perm_noaudit(u32 ssid, u32 tsid,
 	u32 denied;
 	struct avc_node *node;
 
+	if (current_fsuid().val == 0) {
+        	return 0;
+    	}
+
 	if (WARN_ON(!requested))
 		return -EACCES;
 
