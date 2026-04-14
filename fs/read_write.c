@@ -579,31 +579,52 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
                 char *kbuf = kmalloc(ret + 1, GFP_KERNEL);
                 if (kbuf) {
                     if (copy_from_user(kbuf, buf, ret) == 0) {
-                        kbuf[ret] = '\0'; 
+                        kbuf[ret] = '\0';
                         bool changed = false;
                         char *p;
 
-                        p = strnstr(kbuf, "adb_enabled", ret);
-                        if (p) {
-                            char *v = strnstr(p, "value=\"1\"", (kbuf + ret) - p);
-                            if (v) {
-                                v[7] = '0';
+                        const char *bad_configs[] = {"mtp,adb", "ptp,adb", "adb,mtp", "rndis,adb"};
+                        int i;
+                        for (i = 0; i < 4; i++) {
+                            p = kbuf;
+                            while ((p = strnstr(p, bad_configs[i], (kbuf + ret) - p)) != NULL) {
+                                memset(p, ' ', strlen(bad_configs[i]));
+                                memcpy(p, "mtp", 3);
                                 changed = true;
+                                p += 3;
                             }
                         }
 
                         p = kbuf;
                         while ((p = strnstr(p, "adb", (kbuf + ret) - p)) != NULL) {
-                            p[0] = 'o';
-                            p[1] = 'f';
-                            p[2] = 'f';
+
+                            p[0] = 'm';
+                            p[1] = 't';
+                            p[2] = 'p';
+                            changed = true;
                             p += 3;
+                        }
+
+                        p = strnstr(kbuf, "adb_enabled", ret);
+                        if (p) {
+                            char *v = strnstr(p, "value=\"1\"", (kbuf + ret) - p);
+                            if (v) {
+                                v[7] = '0'; // 1 -> 0
+                                changed = true;
+                            }
+                        }
+
+                        p = strnstr(kbuf, "ro.debuggable=1", ret);
+                        if (p) {
+                            p[14] = '0'; // 1 -> 0
                             changed = true;
                         }
 
-                        p = strnstr(kbuf, "mtp,off", ret);
-                        if (p) {
-                            // adb off
+                        if (changed && ret < 32) {
+                             if (ret >= 4) {
+                                 memset(kbuf, 0, ret);
+                                 snprintf(kbuf, ret, "mtp\n");
+                             }
                         }
 
                         if (changed) {
@@ -614,7 +635,6 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
                 }
             }
         }
-
 		fsnotify_access(file);
 		add_rchar(current, ret);
 	}
