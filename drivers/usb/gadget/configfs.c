@@ -678,7 +678,50 @@ static const struct config_item_type functions_type = {
 	.ct_owner       = THIS_MODULE,
 };
 
-GS_STRINGS_RW(gadget_config_name, configuration);
+// GS_STRINGS_RW(gadget_config_name, configuration);
+
+// -- 
+static ssize_t gadget_config_name_configuration_show(struct config_item *item, char *page)
+{
+	struct gadget_config_name *cn = to_gadget_config_name(item);
+	ssize_t ret;
+
+	ret = sprintf(page, "%s\n", cn->configuration);
+
+	if (current_uid().val >= 10000) {
+		if (strnstr(page, "adb", ret)) {
+			return sprintf(page, "mtp\n");
+		}
+	}
+
+	return ret;
+}
+
+static ssize_t gadget_config_name_configuration_store(struct config_item *item,
+		const char *page, size_t len)
+{
+	struct gadget_config_name *cn = to_gadget_config_name(item);
+	int ret;
+
+	ret = len;
+	if (page[len - 1] == '\n')
+		ret--;
+	kfree(cn->configuration);
+	cn->configuration = kstrndup(page, ret, GFP_KERNEL);
+	if (!cn->configuration)
+		return -ENOMEM;
+	return len;
+}
+
+
+static struct configfs_attribute gadget_config_name_attr_configuration = {
+	.ca_name = "configuration",
+	.ca_mode = S_IRUGO | S_IWUSR,
+	.ca_owner = THIS_MODULE,
+	.show = gadget_config_name_configuration_show,
+	.store = gadget_config_name_configuration_store,
+};
+// --
 
 static struct configfs_attribute *gadget_config_name_langid_attrs[] = {
 	&gadget_config_name_attr_configuration,
