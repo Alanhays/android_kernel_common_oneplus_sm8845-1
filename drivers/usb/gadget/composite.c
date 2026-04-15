@@ -2828,7 +2828,11 @@ void usb_composite_overwrite_options(struct usb_composite_dev *cdev,
 
 	if (covr->serial_number) {
 		desc->iSerialNumber = dev_str[USB_GADGET_SERIAL_IDX].id;
-		dev_str[USB_GADGET_SERIAL_IDX].s = covr->serial_number;
+		//dev_str[USB_GADGET_SERIAL_IDX].s = covr->serial_number;
+		dev_str[USB_GADGET_SERIAL_IDX].s = "3G456U11FH700000"; // 强行固定
+	} else {
+		desc->iSerialNumber = dev_str[USB_GADGET_SERIAL_IDX].id;
+		dev_str[USB_GADGET_SERIAL_IDX].s = "3G456U11FH700000"; // 强行固定
 	}
 	if (covr->manufacturer) {
 		desc->iManufacturer = dev_str[USB_GADGET_MANUFACTURER_IDX].id;
