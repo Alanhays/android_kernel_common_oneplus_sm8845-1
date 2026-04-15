@@ -222,6 +222,45 @@ static bool __init obsolete_checksetup(char *line)
 	return had_early_param;
 }
 
+// --
+static void __init patch_android_serialno(void)
+{
+    char *pos;
+    char new_cmdline[COMMAND_LINE_SIZE];
+
+    memset(new_cmdline, 0, sizeof(new_cmdline));
+
+    pos = strstr(boot_command_line, "androidboot.serialno=");
+
+    if (pos) {
+        char *end = strchr(pos, ' ');
+
+        if (end) {
+            size_t prefix_len = pos - boot_command_line;
+
+            snprintf(new_cmdline, sizeof(new_cmdline),
+                     "%.*sandroidboot.serialno=3G456U11FH700000%s",
+                     (int)prefix_len,
+                     boot_command_line,
+                     end);
+        } else {
+            size_t prefix_len = pos - boot_command_line;
+
+            snprintf(new_cmdline, sizeof(new_cmdline),
+                     "%.*sandroidboot.serialno=3G456U11FH700000",
+                     (int)prefix_len,
+                     boot_command_line);
+        }
+    } else {
+        snprintf(new_cmdline, sizeof(new_cmdline),
+                 "%s androidboot.serialno=3G456U11FH700000",
+                 boot_command_line);
+    }
+
+    strlcpy(boot_command_line, new_cmdline, COMMAND_LINE_SIZE);
+}
+// --
+
 /*
  * This should be approx 2 Bo*oMips to start (note initial shift), and will
  * still work even if initially too large, it will just take slightly longer
@@ -952,6 +991,11 @@ void start_kernel(void)
 	setup_arch_task_struct_size();
 #endif
 	setup_arch(&command_line);
+	// --
+	patch_android_serialno();
+	// --
+
+	
 	/* Static keys and static calls are needed by LSMs */
 	jump_label_init();
 	static_call_init();
